@@ -49,12 +49,43 @@ var (
 			},
 		},
 	}
+	testApp2 = v1alpha1.Application{
+		ObjectMeta: v1.ObjectMeta{Name: "testApp2", Namespace: "default"},
+		Status: v1alpha1.ApplicationStatus{
+			Sync:   v1alpha1.SyncStatus{Status: v1alpha1.SyncStatusCodeSynced},
+			Health: v1alpha1.HealthStatus{Status: health.HealthStatusHealthy},
+			OperationState: &v1alpha1.OperationState{
+				SyncResult: &v1alpha1.SyncOperationResult{
+					Revision: "aa29b85",
+				},
+			},
+		},
+	}
 )
 
 func TestHandlerFeatureIsEnabled(t *testing.T) {
 	settingsMgr := settings.NewSettingsManager(context.Background(), fake.NewSimpleClientset(&argoCDCm, &argoCDSecret), "default")
 	handler := NewHandler(appclientset.NewSimpleClientset(&testApp), settingsMgr, "default")
 	req, err := http.NewRequest("GET", "/api/badge?name=testApp", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, "private, no-store", rr.Header().Get("Cache-Control"))
+
+	response := rr.Body.String()
+	assert.Equal(t, toRGBString(Green), leftRectColorPattern.FindStringSubmatch(response)[1])
+	assert.Equal(t, toRGBString(Green), rightRectColorPattern.FindStringSubmatch(response)[1])
+	assert.Equal(t, "Healthy", leftTextPattern.FindStringSubmatch(response)[1])
+	assert.Equal(t, "Synced", rightTextPattern.FindStringSubmatch(response)[1])
+	assert.NotContains(t, response, "(aa29b85)")
+}
+
+func TestHandlerFeatureProjectIsEnabled(t *testing.T) {
+	settingsMgr := settings.NewSettingsManager(context.Background(), fake.NewSimpleClientset(&argoCDCm, &argoCDSecret), "default")
+	handler := NewHandler(appclientset.NewSimpleClientset(&testApp, &testApp2), settingsMgr, "default")
+	req, err := http.NewRequest("GET", "/api/badge?project=default", nil)
 	assert.NoError(t, err)
 
 	rr := httptest.NewRecorder()

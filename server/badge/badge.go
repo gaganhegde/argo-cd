@@ -12,6 +12,7 @@ import (
 
 	appv1 "github.com/argoproj/argo-cd/pkg/apis/application/v1alpha1"
 	"github.com/argoproj/argo-cd/pkg/client/clientset/versioned"
+	"github.com/argoproj/argo-cd/util/argo"
 	"github.com/argoproj/argo-cd/util/assets"
 	"github.com/argoproj/argo-cd/util/settings"
 )
@@ -83,6 +84,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		} else if errors.IsNotFound(err) {
 			notFound = true
+		}
+	}
+	//Sample url: http://localhost:8080/api/badge?project=default
+	if project, ok := r.URL.Query()["project"]; ok && enabled {
+		if apps, err := h.appClientset.ArgoprojV1alpha1().Applications(h.namespace).List(context.Background(), v1.ListOptions{}); err == nil {
+			for _, a := range argo.FilterByProjects(apps.Items, []string{project[0]}) {
+				if a.Status.Sync.Status != appv1.SyncStatusCodeSynced {
+					status = appv1.SyncStatusCodeOutOfSync
+				}
+				if a.Status.Health.Status != healthutil.HealthStatusHealthy {
+					health = healthutil.HealthStatusDegraded
+				}
+			}
+			if health != healthutil.HealthStatusDegraded {
+				health = healthutil.HealthStatusHealthy
+			}
+			if status != appv1.SyncStatusCodeOutOfSync {
+				status = appv1.SyncStatusCodeSynced
+			}
 		}
 	}
 
