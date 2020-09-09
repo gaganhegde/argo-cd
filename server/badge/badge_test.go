@@ -50,54 +50,6 @@ var (
 			},
 		},
 	}
-	testApp1 = v1alpha1.Application{
-		ObjectMeta: v1.ObjectMeta{Name: "testApp1", Namespace: "default"},
-		Status: v1alpha1.ApplicationStatus{
-			Sync:   v1alpha1.SyncStatus{Status: v1alpha1.SyncStatusCodeSynced},
-			Health: v1alpha1.HealthStatus{Status: health.HealthStatusHealthy},
-			OperationState: &v1alpha1.OperationState{
-				SyncResult: &v1alpha1.SyncOperationResult{
-					Revision: "aa29b85",
-				},
-			},
-		},
-	}
-	testApp2 = v1alpha1.Application{
-		ObjectMeta: v1.ObjectMeta{Name: "testApp2", Namespace: "default"},
-		Status: v1alpha1.ApplicationStatus{
-			Sync:   v1alpha1.SyncStatus{Status: v1alpha1.SyncStatusCodeSynced},
-			Health: v1alpha1.HealthStatus{Status: health.HealthStatusDegraded},
-			OperationState: &v1alpha1.OperationState{
-				SyncResult: &v1alpha1.SyncOperationResult{
-					Revision: "aa29b85",
-				},
-			},
-		},
-	}
-	testApp3 = v1alpha1.Application{
-		ObjectMeta: v1.ObjectMeta{Name: "testApp3", Namespace: "default"},
-		Status: v1alpha1.ApplicationStatus{
-			Sync:   v1alpha1.SyncStatus{Status: v1alpha1.SyncStatusCodeOutOfSync},
-			Health: v1alpha1.HealthStatus{Status: health.HealthStatusHealthy},
-			OperationState: &v1alpha1.OperationState{
-				SyncResult: &v1alpha1.SyncOperationResult{
-					Revision: "aa29b85",
-				},
-			},
-		},
-	}
-	testApp4 = v1alpha1.Application{
-		ObjectMeta: v1.ObjectMeta{Name: "testApp4", Namespace: "default"},
-		Status: v1alpha1.ApplicationStatus{
-			Sync:   v1alpha1.SyncStatus{Status: v1alpha1.SyncStatusCodeOutOfSync},
-			Health: v1alpha1.HealthStatus{Status: health.HealthStatusDegraded},
-			OperationState: &v1alpha1.OperationState{
-				SyncResult: &v1alpha1.SyncOperationResult{
-					Revision: "aa29b85",
-				},
-			},
-		},
-	}
 )
 
 func TestHandlerFeatureIsEnabled(t *testing.T) {
@@ -129,10 +81,10 @@ func TestHandlerFeatureProjectIsEnabled(t *testing.T) {
 		healthColor color.RGBA
 		statusColor color.RGBA
 	}{
-		{[]*v1alpha1.Application{&testApp, &testApp1}, "/api/badge?project=default", "default", "Healthy", "Synced", Green, Green},
-		{[]*v1alpha1.Application{&testApp1, &testApp3}, "/api/badge?project=default", "default", "Healthy", "OutOfSync", Green, Orange},
-		{[]*v1alpha1.Application{&testApp1, &testApp2}, "/api/badge?project=default", "default", "Degraded", "Synced", Red, Green},
-		{[]*v1alpha1.Application{&testApp2, &testApp3}, "/api/badge?project=default", "default", "Degraded", "OutOfSync", Red, Orange},
+		{[]*v1alpha1.Application{createApplicationFeatureProjectIsEnabled(health.HealthStatusHealthy, v1alpha1.SyncStatusCodeSynced, "syncHealthy"), createApplicationFeatureProjectIsEnabled(health.HealthStatusHealthy, v1alpha1.SyncStatusCodeSynced, "syncHealthy1")}, "/api/badge?project=default", "default", "Healthy", "Synced", Green, Green},
+		{[]*v1alpha1.Application{createApplicationFeatureProjectIsEnabled(health.HealthStatusHealthy, v1alpha1.SyncStatusCodeSynced, "syncHealthy"), createApplicationFeatureProjectIsEnabled(health.HealthStatusHealthy, v1alpha1.SyncStatusCodeOutOfSync, "outOfsyncHealthy")}, "/api/badge?project=default", "default", "Healthy", "OutOfSync", Green, Orange},
+		{[]*v1alpha1.Application{createApplicationFeatureProjectIsEnabled(health.HealthStatusHealthy, v1alpha1.SyncStatusCodeSynced, "syncHealthy"), createApplicationFeatureProjectIsEnabled(health.HealthStatusDegraded, v1alpha1.SyncStatusCodeSynced, "syncDegraded")}, "/api/badge?project=default", "default", "Degraded", "Synced", Red, Green},
+		{[]*v1alpha1.Application{createApplicationFeatureProjectIsEnabled(health.HealthStatusDegraded, v1alpha1.SyncStatusCodeSynced, "syncDegraded"), createApplicationFeatureProjectIsEnabled(health.HealthStatusDegraded, v1alpha1.SyncStatusCodeOutOfSync, "outOfsyncDegraded")}, "/api/badge?project=default", "default", "Degraded", "OutOfSync", Red, Orange},
 	}
 	for _, tt := range projectTests {
 		settingsMgr := settings.NewSettingsManager(context.Background(), fake.NewSimpleClientset(&argoCDCm, &argoCDSecret), tt.namespace)
@@ -143,13 +95,26 @@ func TestHandlerFeatureProjectIsEnabled(t *testing.T) {
 		handler.ServeHTTP(rr, req)
 		assert.Equal(t, "private, no-store", rr.Header().Get("Cache-Control"))
 		response := rr.Body.String()
-
 		assert.Equal(t, toRGBString(tt.healthColor), leftRectColorPattern.FindStringSubmatch(response)[1])
 		assert.Equal(t, toRGBString(tt.statusColor), rightRectColorPattern.FindStringSubmatch(response)[1])
 		assert.Equal(t, tt.health, leftTextPattern.FindStringSubmatch(response)[1])
 		assert.Equal(t, tt.status, rightTextPattern.FindStringSubmatch(response)[1])
 
 	}
+}
+
+func createApplicationFeatureProjectIsEnabled(healthStatus health.HealthStatusCode, syncStatus v1alpha1.SyncStatusCode, appName string) *v1alpha1.Application {
+	return &v1alpha1.Application{
+		ObjectMeta: v1.ObjectMeta{Name: appName, Namespace: "default"},
+		Status: v1alpha1.ApplicationStatus{
+			Sync:   v1alpha1.SyncStatus{Status: syncStatus},
+			Health: v1alpha1.HealthStatus{Status: healthStatus},
+			OperationState: &v1alpha1.OperationState{
+				SyncResult: &v1alpha1.SyncOperationResult{},
+			},
+		},
+	}
+
 }
 func TestHandlerFeatureIsEnabledRevisionIsEnabled(t *testing.T) {
 	settingsMgr := settings.NewSettingsManager(context.Background(), fake.NewSimpleClientset(&argoCDCm, &argoCDSecret), "default")
