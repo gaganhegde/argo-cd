@@ -87,9 +87,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	//Sample url: http://localhost:8080/api/badge?project=default
-	if project, ok := r.URL.Query()["project"]; ok && enabled {
+	if projects, ok := r.URL.Query()["project"]; ok && enabled {
 		if apps, err := h.appClientset.ArgoprojV1alpha1().Applications(h.namespace).List(context.Background(), v1.ListOptions{}); err == nil {
-			for _, a := range argo.FilterByProjects(apps.Items, []string{project[0]}) {
+			applicationSet := argo.FilterByProjects(apps.Items, projects)
+			for _, a := range applicationSet {
 				if a.Status.Sync.Status != appv1.SyncStatusCodeSynced {
 					status = appv1.SyncStatusCodeOutOfSync
 				}
@@ -97,10 +98,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					health = healthutil.HealthStatusDegraded
 				}
 			}
-			if health != healthutil.HealthStatusDegraded {
+			if health != healthutil.HealthStatusDegraded && len(applicationSet) > 0 {
 				health = healthutil.HealthStatusHealthy
 			}
-			if status != appv1.SyncStatusCodeOutOfSync {
+			if status != appv1.SyncStatusCodeOutOfSync && len(applicationSet) > 0 {
 				status = appv1.SyncStatusCodeSynced
 			}
 		}
