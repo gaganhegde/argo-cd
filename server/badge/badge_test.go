@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/argoproj/argo-cd/pkg/apis/application/v1alpha1"
@@ -81,10 +82,10 @@ func TestHandlerFeatureProjectIsEnabled(t *testing.T) {
 		healthColor color.RGBA
 		statusColor color.RGBA
 	}{
-		{[]*v1alpha1.Application{createApplicationFeatureProjectIsEnabled(health.HealthStatusHealthy, v1alpha1.SyncStatusCodeSynced, "syncHealthy"), createApplicationFeatureProjectIsEnabled(health.HealthStatusHealthy, v1alpha1.SyncStatusCodeSynced, "syncHealthy1")}, "/api/badge?project=default", "default", "Healthy", "Synced", Green, Green},
-		{[]*v1alpha1.Application{createApplicationFeatureProjectIsEnabled(health.HealthStatusHealthy, v1alpha1.SyncStatusCodeSynced, "syncHealthy"), createApplicationFeatureProjectIsEnabled(health.HealthStatusHealthy, v1alpha1.SyncStatusCodeOutOfSync, "outOfsyncHealthy")}, "/api/badge?project=default", "default", "Healthy", "OutOfSync", Green, Orange},
-		{[]*v1alpha1.Application{createApplicationFeatureProjectIsEnabled(health.HealthStatusHealthy, v1alpha1.SyncStatusCodeSynced, "syncHealthy"), createApplicationFeatureProjectIsEnabled(health.HealthStatusDegraded, v1alpha1.SyncStatusCodeSynced, "syncDegraded")}, "/api/badge?project=default", "default", "Degraded", "Synced", Red, Green},
-		{[]*v1alpha1.Application{createApplicationFeatureProjectIsEnabled(health.HealthStatusDegraded, v1alpha1.SyncStatusCodeSynced, "syncDegraded"), createApplicationFeatureProjectIsEnabled(health.HealthStatusDegraded, v1alpha1.SyncStatusCodeOutOfSync, "outOfsyncDegraded")}, "/api/badge?project=default", "default", "Degraded", "OutOfSync", Red, Orange},
+		{getApplications([]string{"Healthy:Synced", "Healthy:Synced"}), "/api/badge?project=default", "default", "Healthy", "Synced", Green, Green},
+		{getApplications([]string{"Healthy:Synced", "Healthy:OutOfSync"}), "/api/badge?project=default", "default", "Healthy", "OutOfSync", Green, Orange},
+		{getApplications([]string{"Healthy:Synced", "Degraded:Synced"}), "/api/badge?project=default", "default", "Degraded", "Synced", Red, Green},
+		{getApplications([]string{"Healthy:Synced", "Degraded:OutOfSync"}), "/api/badge?project=default", "default", "Degraded", "OutOfSync", Red, Orange},
 	}
 	for _, tt := range projectTests {
 		settingsMgr := settings.NewSettingsManager(context.Background(), fake.NewSimpleClientset(&argoCDCm, &argoCDSecret), tt.namespace)
@@ -114,7 +115,38 @@ func createApplicationFeatureProjectIsEnabled(healthStatus health.HealthStatusCo
 			},
 		},
 	}
+}
 
+func getApplications(appCombo []string) []*v1alpha1.Application {
+	apps := make([]*v1alpha1.Application, 2)
+	healthStatus := func(healthType string) health.HealthStatusCode {
+		switch healthType {
+		case "Healthy":
+			return health.HealthStatusHealthy
+		case "Degraded":
+			return health.HealthStatusDegraded
+		default:
+			return health.HealthStatusUnknown
+		}
+	}
+	syncStatus := func(syncType string) v1alpha1.SyncStatusCode {
+		switch syncType {
+		case "Synced":
+			return v1alpha1.SyncStatusCodeSynced
+		case "OutOfSync":
+			return v1alpha1.SyncStatusCodeOutOfSync
+		default:
+			return v1alpha1.SyncStatusCodeUnknown
+		}
+	}
+	for index, value := range appCombo {
+		applicationTypes := strings.Split(value, ":")
+		healthApp := healthStatus(applicationTypes[0])
+		syncApp := syncStatus(applicationTypes[1])
+		appName := "App" + string(index)
+		apps[index] = createApplicationFeatureProjectIsEnabled(healthApp, syncApp, appName)
+	}
+	return apps
 }
 func TestHandlerFeatureIsEnabledRevisionIsEnabled(t *testing.T) {
 	settingsMgr := settings.NewSettingsManager(context.Background(), fake.NewSimpleClientset(&argoCDCm, &argoCDSecret), "default")
