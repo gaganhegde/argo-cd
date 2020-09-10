@@ -51,6 +51,10 @@ var (
 			},
 		},
 	}
+	testProject = v1alpha1.AppProject{
+		ObjectMeta: v1.ObjectMeta{Name: "testProject", Namespace: "default"},
+		Spec:       v1alpha1.AppProjectSpec{},
+	}
 )
 
 func TestHandlerFeatureIsEnabled(t *testing.T) {
@@ -82,14 +86,21 @@ func TestHandlerFeatureProjectIsEnabled(t *testing.T) {
 		healthColor color.RGBA
 		statusColor color.RGBA
 	}{
-		{getApplications([]string{"Healthy:Synced", "Healthy:Synced"}), "/api/badge?project=default", "default", "Healthy", "Synced", Green, Green},
-		{getApplications([]string{"Healthy:Synced", "Healthy:OutOfSync"}), "/api/badge?project=default", "default", "Healthy", "OutOfSync", Green, Orange},
-		{getApplications([]string{"Healthy:Synced", "Degraded:Synced"}), "/api/badge?project=default", "default", "Degraded", "Synced", Red, Green},
-		{getApplications([]string{"Healthy:Synced", "Degraded:OutOfSync"}), "/api/badge?project=default", "default", "Degraded", "OutOfSync", Red, Orange},
+		{createApplications([]string{"Healthy:Synced", "Healthy:Synced"}, []string{"default", "default"}, "test"), "/api/badge?project=default", "test", "Healthy", "Synced", Green, Green},
+		{createApplications([]string{"Healthy:Synced", "Healthy:OutOfSync"}, []string{"testProject", "testProject"}, "default"), "/api/badge?project=testProject", "default", "Healthy", "OutOfSync", Green, Orange},
+		{createApplications([]string{"Healthy:Synced", "Degraded:Synced"}, []string{"default", "default"}, "test"), "/api/badge?project=default", "test", "Degraded", "Synced", Red, Green},
+		{createApplications([]string{"Healthy:Synced", "Degraded:OutOfSync"}, []string{"testProject", "testProject"}, "default"), "/api/badge?project=testProject", "default", "Degraded", "OutOfSync", Red, Orange},
+		{createApplications([]string{"Healthy:Synced", "Healthy:Synced"}, []string{"testProject", "default"}, "test"), "/api/badge?project=default&project=testProject", "test", "Healthy", "Synced", Green, Green},
+		{createApplications([]string{"Healthy:OutOfSync", "Healthy:Synced"}, []string{"testProject", "default"}, "default"), "/api/badge?project=default&project=testProject", "default", "Healthy", "OutOfSync", Green, Orange},
+		{createApplications([]string{"Degraded:Synced", "Healthy:Synced"}, []string{"testProject", "default"}, "test"), "/api/badge?project=default&project=testProject", "test", "Degraded", "Synced", Red, Green},
+		{createApplications([]string{"Degraded:OutOfSync", "Healthy:OutOfSync"}, []string{"testProject", "default"}, "default"), "/api/badge?project=default&project=testProject", "default", "Degraded", "OutOfSync", Red, Orange},
+		{createApplications([]string{"Unknown:Unknown", "Unknown:Unknown"}, []string{"testProject", "default"}, "default"), "/api/badge?project=", "default", "Unknown", "Unknown", Purple, Purple},
 	}
 	for _, tt := range projectTests {
+		argoCDCm.ObjectMeta.Namespace = tt.namespace
+		argoCDSecret.ObjectMeta.Namespace = tt.namespace
 		settingsMgr := settings.NewSettingsManager(context.Background(), fake.NewSimpleClientset(&argoCDCm, &argoCDSecret), tt.namespace)
-		handler := NewHandler(appclientset.NewSimpleClientset(tt.testApp[0], tt.testApp[1]), settingsMgr, tt.namespace)
+		handler := NewHandler(appclientset.NewSimpleClientset(&testProject, tt.testApp[0], tt.testApp[1]), settingsMgr, tt.namespace)
 		rr := httptest.NewRecorder()
 		req, err := http.NewRequest("GET", tt.apiEndPoint, nil)
 		assert.NoError(t, err)
@@ -104,9 +115,9 @@ func TestHandlerFeatureProjectIsEnabled(t *testing.T) {
 	}
 }
 
-func createApplicationFeatureProjectIsEnabled(healthStatus health.HealthStatusCode, syncStatus v1alpha1.SyncStatusCode, appName string) *v1alpha1.Application {
+func createApplicationFeatureProjectIsEnabled(healthStatus health.HealthStatusCode, syncStatus v1alpha1.SyncStatusCode, appName, projectName, namespace string) *v1alpha1.Application {
 	return &v1alpha1.Application{
-		ObjectMeta: v1.ObjectMeta{Name: appName, Namespace: "default"},
+		ObjectMeta: v1.ObjectMeta{Name: appName, Namespace: namespace},
 		Status: v1alpha1.ApplicationStatus{
 			Sync:   v1alpha1.SyncStatus{Status: syncStatus},
 			Health: v1alpha1.HealthStatus{Status: healthStatus},
@@ -114,11 +125,14 @@ func createApplicationFeatureProjectIsEnabled(healthStatus health.HealthStatusCo
 				SyncResult: &v1alpha1.SyncOperationResult{},
 			},
 		},
+		Spec: v1alpha1.ApplicationSpec{
+			Project: projectName,
+		},
 	}
 }
 
-func getApplications(appCombo []string) []*v1alpha1.Application {
-	apps := make([]*v1alpha1.Application, 2)
+func createApplications(appCombo, projectName []string, namespace string) []*v1alpha1.Application {
+	apps := make([]*v1alpha1.Application, len(appCombo))
 	healthStatus := func(healthType string) health.HealthStatusCode {
 		switch healthType {
 		case "Healthy":
@@ -139,12 +153,12 @@ func getApplications(appCombo []string) []*v1alpha1.Application {
 			return v1alpha1.SyncStatusCodeUnknown
 		}
 	}
-	for index, value := range appCombo {
-		applicationTypes := strings.Split(value, ":")
-		healthApp := healthStatus(applicationTypes[0])
-		syncApp := syncStatus(applicationTypes[1])
-		appName := "App" + string(index)
-		apps[index] = createApplicationFeatureProjectIsEnabled(healthApp, syncApp, appName)
+	for k, v := range appCombo {
+		a := strings.Split(v, ":")
+		healthApp := healthStatus(a[0])
+		syncApp := syncStatus(a[1])
+		appName := "App" + string(k)
+		apps[k] = createApplicationFeatureProjectIsEnabled(healthApp, syncApp, appName, projectName[k], namespace)
 	}
 	return apps
 }
