@@ -86,15 +86,24 @@ func TestHandlerFeatureProjectIsEnabled(t *testing.T) {
 		healthColor color.RGBA
 		statusColor color.RGBA
 	}{
-		{createApplications([]string{"Healthy:Synced", "Healthy:Synced"}, []string{"default", "default"}, "test"), "/api/badge?project=default", "test", "Healthy", "Synced", Green, Green},
-		{createApplications([]string{"Healthy:Synced", "Healthy:OutOfSync"}, []string{"testProject", "testProject"}, "default"), "/api/badge?project=testProject", "default", "Healthy", "OutOfSync", Green, Orange},
-		{createApplications([]string{"Healthy:Synced", "Degraded:Synced"}, []string{"default", "default"}, "test"), "/api/badge?project=default", "test", "Degraded", "Synced", Red, Green},
-		{createApplications([]string{"Healthy:Synced", "Degraded:OutOfSync"}, []string{"testProject", "testProject"}, "default"), "/api/badge?project=testProject", "default", "Degraded", "OutOfSync", Red, Orange},
-		{createApplications([]string{"Healthy:Synced", "Healthy:Synced"}, []string{"testProject", "default"}, "test"), "/api/badge?project=default&project=testProject", "test", "Healthy", "Synced", Green, Green},
-		{createApplications([]string{"Healthy:OutOfSync", "Healthy:Synced"}, []string{"testProject", "default"}, "default"), "/api/badge?project=default&project=testProject", "default", "Healthy", "OutOfSync", Green, Orange},
-		{createApplications([]string{"Degraded:Synced", "Healthy:Synced"}, []string{"testProject", "default"}, "test"), "/api/badge?project=default&project=testProject", "test", "Degraded", "Synced", Red, Green},
-		{createApplications([]string{"Degraded:OutOfSync", "Healthy:OutOfSync"}, []string{"testProject", "default"}, "default"), "/api/badge?project=default&project=testProject", "default", "Degraded", "OutOfSync", Red, Orange},
-		{createApplications([]string{"Unknown:Unknown", "Unknown:Unknown"}, []string{"testProject", "default"}, "default"), "/api/badge?project=", "default", "Unknown", "Unknown", Purple, Purple},
+		{createApplications([]string{"Healthy:Synced", "Healthy:Synced"}, []string{"default", "default"}, "test"),
+			"/api/badge?project=default", "test", "Healthy", "Synced", Green, Green},
+		{createApplications([]string{"Healthy:Synced", "Healthy:OutOfSync"}, []string{"testProject", "testProject"}, "default"),
+			"/api/badge?project=testProject", "default", "Healthy", "OutOfSync", Green, Orange},
+		{createApplications([]string{"Healthy:Synced", "Degraded:Synced"}, []string{"default", "default"}, "test"),
+			"/api/badge?project=default", "test", "Degraded", "Synced", Red, Green},
+		{createApplications([]string{"Healthy:Synced", "Degraded:OutOfSync"}, []string{"testProject", "testProject"}, "default"),
+			"/api/badge?project=testProject", "default", "Degraded", "OutOfSync", Red, Orange},
+		{createApplications([]string{"Healthy:Synced", "Healthy:Synced"}, []string{"testProject", "default"}, "test"),
+			"/api/badge?project=default&project=testProject", "test", "Healthy", "Synced", Green, Green},
+		{createApplications([]string{"Healthy:OutOfSync", "Healthy:Synced"}, []string{"testProject", "default"}, "default"),
+			"/api/badge?project=default&project=testProject", "default", "Healthy", "OutOfSync", Green, Orange},
+		{createApplications([]string{"Degraded:Synced", "Healthy:Synced"}, []string{"testProject", "default"}, "test"),
+			"/api/badge?project=default&project=testProject", "test", "Degraded", "Synced", Red, Green},
+		{createApplications([]string{"Degraded:OutOfSync", "Healthy:OutOfSync"}, []string{"testProject", "default"}, "default"),
+			"/api/badge?project=default&project=testProject", "default", "Degraded", "OutOfSync", Red, Orange},
+		{createApplications([]string{"Unknown:Unknown", "Unknown:Unknown"}, []string{"testProject", "default"}, "default"),
+			"/api/badge?project=", "default", "Unknown", "Unknown", Purple, Purple},
 	}
 	for _, tt := range projectTests {
 		argoCDCm.ObjectMeta.Namespace = tt.namespace
